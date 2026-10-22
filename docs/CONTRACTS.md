@@ -17,6 +17,7 @@
 | `POST /api/auth/employees/register` | אמיתי | הרשמה ציבורית | עובד/ת: שם מלא, דוא״ל וסיסמה (טלפון לא חובה) → חשבון ו-session |
 | `POST /api/auth/invitations` | אמיתי | מנהל/ת | הזמנת נציג/ה: קוד בן 5 ספרות, קשור לדוא״ל, תקף ל-24 שעות. הזמנה חוזרת מחליפה את הקוד |
 | `POST /api/auth/representatives/register` | אמיתי | הרשמה בהזמנה | נציג/ה: דוא״ל + קוד + סיסמה → חשבון ו-session. קוד חד-פעמי, עד 10 ניסיונות ב-15 דקות |
+| `GET /api/admin/insights`, `GET /api/admin/insights/reports[/{month}]` | אמיתי | מנהל/ת | דוח נקודות הבלבול של החודש (או דוח חודשי שמור): ספירות לפי נושא, `min_count` = סף הצגה. נושא מפחות מ-3 שיחות מוסתר |
 | `GET /api/auth/me`, `POST /api/auth/logout` | אמיתי | session | פרטי המשתמש המחובר/ת וביטול session |
 | `POST /api/conversations/{id}/explore` | אמיתי | א' | כל החלופות בבת אחת, בלי מודל שפה. 409 אם הפרופיל לא שלם |
 | `GET /api/vehicles/search?q=&year=` | אמיתי, **קוד נציג** | א' | חיפוש במאגר המלא — לזיהוי הרכב של היום |

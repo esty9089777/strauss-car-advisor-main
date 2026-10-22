@@ -7,7 +7,8 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import accounts, chat, compare, data, payslip, rep, rules
+from app import insights as topic_insights
+from app.api import accounts, chat, compare, data, insights, payslip, rep, rules
 from app.auth import hash_password, normalize_email
 from app.engine import vou
 from app.store import get_store
@@ -42,14 +43,26 @@ def _purge(days: int) -> None:
         log.info("נמחקו %d שיחות ישנות מ-%d ימים", purged, days)
 
 
+def _snapshot_report() -> None:
+    try:
+        month = topic_insights.snapshot_due(get_store())
+    except Exception:  # הדוח הוא תוספת — לא מפילים בגללו את עליית השרת
+        log.exception("שמירת הדוח החודשי נכשלה")
+        return
+    if month:
+        log.info("נשמר הדוח החודשי של %s", month)
+
+
 async def _purge_daily(days: int) -> None:
-    """בזכות ה-keep-alive השרת כמעט לא עולה מחדש — לכן המחיקה רצה גם כל יום, לא רק בעלייה."""
+    """בזכות ה-keep-alive השרת כמעט לא עולה מחדש — לכן המשימות היומיות רצות גם בזמן ריצה, לא רק בעלייה:
+    מחיקת שיחות ישנות, ושמירת הדוח החודשי של נקודות הבלבול בתחילת כל חודש."""
     while True:
         await asyncio.sleep(PURGE_SECONDS)
-        try:
-            _purge(days)
-        except Exception:
-            log.exception("מחיקת שיחות ישנות נכשלה")
+        for job in (lambda: _purge(days), _snapshot_report):
+            try:
+                job()
+            except Exception:
+                log.exception("משימה יומית נכשלה")
 
 
 def _seed_demo_rep() -> None:
@@ -74,6 +87,7 @@ async def lifespan(app: FastAPI):
     days = int(os.environ.get("RETENTION_DAYS", "30"))
     _purge(days)
     _seed_demo_rep()
+    _snapshot_report()
     vou.lookup_ready()  # בונה את מאגר שווי השימוש עכשיו, ולא בשאלה הראשונה של עובד
     tasks = [asyncio.create_task(_purge_daily(days))]
     url = os.environ.get("RENDER_EXTERNAL_URL")  # Render מגדיר אותו לבד; מקומית — אין keep-alive
@@ -93,7 +107,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (accounts, data, compare, chat, payslip, rep, rules):
+for module in (accounts, data, compare, chat, insights, payslip, rep, rules):
     app.include_router(module.router)
 
 

@@ -8,7 +8,7 @@ import math
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app import seed
+from app import insights, seed
 from app.contracts import CompareRequest, CompareResponse, OptionRequest, RepQuestion, Tracked
 from app.engine import vou
 from app.engine.compare import DRIVE_LABELS, compare
@@ -331,6 +331,7 @@ def ask_rep(
         created_at=datetime.now(timezone.utc),
     )
     store.save_question(q)
+    insights.record_rep_question(store, record.state.conversation_id, field)
     record.state.status = "waiting_for_rep"
     result = {"sent": True, "question_id": q.id}
     # בינתיים: השוואה חלקית — המצב היום מחושב, והחלופה תתעדכן כשהנציג יענה

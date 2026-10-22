@@ -83,6 +83,9 @@ export const api = {
     }),
   registerRep: (email, code, password) =>
     request("/auth/representatives/register", { method: "POST", body: { email, code, password } }),
+  insights: (minCount) => request(`/admin/insights?min_count=${minCount}`),
+  insightReports: () => request("/admin/insights/reports"),
+  insightReport: (month, minCount) => request(`/admin/insights/reports/${month}?min_count=${minCount}`),
   login: (email, password, role) => request("/auth/login", { method: "POST", body: { email, password, role } }),
   currentUser: () => request("/auth/me"),
   logout: () => request("/auth/logout", { method: "POST" }),

@@ -9,6 +9,7 @@ import AdminPage from "./pages/AdminPage";
 import AuthPage from "./pages/AuthPage";
 import DesignPage from "./pages/DesignPage";
 import EmployeePage from "./pages/EmployeePage";
+import InsightsPage from "./pages/InsightsPage";
 import RepPage from "./pages/RepPage";
 import RulesPage from "./pages/RulesPage";
 
@@ -17,6 +18,7 @@ import RulesPage from "./pages/RulesPage";
 const NAV = {
   admin: [
     { to: "/admin", label: "ניהול נציגים" },
+    { to: "/insights", label: "דוח תובנות" },
     { to: "/rules", label: "כללים" },
   ],
 };
@@ -85,7 +87,7 @@ function Shell() {
   const { user, checking, logout } = useAuth();
   return (
     <div className="aurora relative isolate min-h-screen">
-      <header className="glass sticky top-0 z-10">
+      <header className="glass sticky top-0 z-10 print:hidden">
         <div className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8">
           <NavLink
             to="/"
@@ -161,6 +163,7 @@ function Shell() {
           />
           <Route path="/admin/login" element={checking ? null : user?.role === "admin" ? <Navigate to="/admin" replace /> : <AuthPage mode="admin-login" />} />
           <Route path="/admin" element={checking ? null : user?.role === "admin" ? <AdminPage /> : <Navigate to="/admin/login" replace />} />
+          <Route path="/insights" element={checking ? null : user?.role === "admin" ? <InsightsPage /> : <Navigate to="/admin/login" replace />} />
           <Route path="/rules" element={checking ? null : user?.role === "admin" ? <RulesPage /> : <Navigate to="/admin/login" replace />} />
           <Route path="/design" element={<DesignPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

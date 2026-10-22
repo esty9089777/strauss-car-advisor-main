@@ -17,6 +17,7 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
 
+from app import insights
 from app.agent import number_guard
 from app.agent.prompts import system_prompt
 from app.agent.tools import TOOL_SPECS, TOOLS, ToolError, describe_option, missing_profile_fields
@@ -139,6 +140,8 @@ def profile_summary(record: ConversationRecord, store: Store) -> str:
 def handle_message(record: ConversationRecord, text: str, store: Store) -> ConversationRecord:
     rules = load_rules()
     system = system_prompt(rules) + profile_summary(record, store)
+    is_first = not any(m.role == "user" for m in record.state.messages)
+    record.topics_asked = insights.record_message(store, record.state.conversation_id, text, record.topics_asked, is_first)
     record.state.messages.append(_message("user", text))
 
     saved_history = list(record.history)
@@ -170,6 +173,7 @@ def handle_message(record: ConversationRecord, text: str, store: Store) -> Conve
             if not unbacked:
                 break
             record.guard_events.append({"at": datetime.now(timezone.utc).isoformat(), "text": reply, "unbacked": unbacked})
+            insights.record_guard_block(store, record.state.conversation_id, insights.topics_in(text))
             log.warning("Number Guard blocked %s", unbacked)
             if retried:
                 reply = FALLBACK_TEXT

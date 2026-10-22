@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 import threading
 import time
@@ -26,6 +27,7 @@ class ConversationRecord(BaseModel):
     alternatives: list[OptionRequest] = Field(default_factory=list)  # החלופות בהשוואה האחרונה
     participations: dict[str, Tracked[float]] = Field(default_factory=dict)  # car_id → השתתפות ידועה
     guard_events: list[dict] = Field(default_factory=list)  # מה ש-Number Guard חסם
+    topics_asked: list[str] = Field(default_factory=list)  # נושאים שכבר עלו בשיחה — לזיהוי שאלה חוזרת בדוח
 
 
 class Store:
@@ -59,6 +61,15 @@ class Store:
                 email TEXT NOT NULL, client_ip TEXT NOT NULL,
                 attempts INTEGER NOT NULL, window_started_at REAL NOT NULL,
                 PRIMARY KEY (email, client_ip)
+            );
+            -- דוח נקודות הבלבול: רק נושא + גיבוב שיחה, בלי טקסט ובלי פרטים אישיים (ראו insights.py)
+            CREATE TABLE IF NOT EXISTS topic_events (
+                month TEXT NOT NULL, kind TEXT NOT NULL, topic TEXT NOT NULL,
+                conversation_hash TEXT NOT NULL, created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_topic_events_month ON topic_events (month);
+            CREATE TABLE IF NOT EXISTS monthly_reports (
+                month TEXT PRIMARY KEY, counts TEXT NOT NULL, created_at TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_questions_status ON rep_questions (status, created_at);
             CREATE INDEX IF NOT EXISTS idx_questions_conversation ON rep_questions (conversation_id);
@@ -408,6 +419,46 @@ class Store:
     def delete_session(self, token_hash: str) -> None:
         with self._lock, self._con:
             self._con.execute("DELETE FROM auth_sessions WHERE token_hash = ?", (token_hash,))
+
+    # ---------- דוח נקודות הבלבול ----------
+
+    def add_topic_events(self, month: str, conversation_hash: str, events: list[tuple[str, str]]) -> None:
+        now = _now()
+        with self._lock, self._con:
+            self._con.executemany(
+                "INSERT INTO topic_events (month, kind, topic, conversation_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+                [(month, kind, topic, conversation_hash, now) for kind, topic in events],
+            )
+
+    def topic_counts(self, month: str) -> list[tuple]:
+        """(kind, topic, events, distinct conversations) לחודש. rep_any = כמה שיחות שונות הגיעו לנציג."""
+        rows = [tuple(r) for r in self._con.execute(
+            """SELECT kind, topic, COUNT(*), COUNT(DISTINCT conversation_hash) FROM topic_events
+            WHERE month = ? GROUP BY kind, topic""",
+            (month,),
+        )]
+        events, conversations = self._con.execute(
+            "SELECT COUNT(*), COUNT(DISTINCT conversation_hash) FROM topic_events WHERE month = ? AND kind = 'rep'",
+            (month,),
+        ).fetchone()
+        if events:
+            rows.append(("rep_any", "", events, conversations))
+        return rows
+
+    def save_monthly_report(self, month: str, counts_json: str) -> None:
+        with self._lock, self._con:
+            self._con.execute(
+                "INSERT OR IGNORE INTO monthly_reports (month, counts, created_at) VALUES (?, ?, ?)",
+                (month, counts_json, _now()),
+            )
+
+    def monthly_report(self, month: str) -> list[tuple] | None:
+        row = self._con.execute("SELECT counts FROM monthly_reports WHERE month = ?", (month,)).fetchone()
+        return [tuple(r) for r in json.loads(row[0])] if row else None
+
+    def monthly_reports(self) -> list[dict]:
+        rows = self._con.execute("SELECT month, created_at FROM monthly_reports ORDER BY month DESC").fetchall()
+        return [{"month": m, "created_at": c} for m, c in rows]
 
     # ---------- שאלות לנציג ----------
 
